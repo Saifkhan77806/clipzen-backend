@@ -55,6 +55,7 @@ export async function realtimeRoutes(
           app.log.warn({
             event: "websocket.invalid_message",
             connectionId,
+            validationErrors: result.error.issues,
           });
 
           socket.send(
