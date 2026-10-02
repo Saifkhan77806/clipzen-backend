@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ClipboardService } from "../clipboard/service.js";
 import { clipboardPushSchema } from "../../schemas/clipboard.js";
 import { PROTOCOL_VERSION } from "../../types/protocol.js";
 export async function realtimeRoutes(app) {
@@ -38,16 +39,8 @@ export async function realtimeRoutes(app) {
                     deviceId: message.deviceId,
                     messageId: message.messageId,
                 });
-                socket.send(JSON.stringify({
-                    version: PROTOCOL_VERSION,
-                    type: "clipboard.received",
-                    messageId: message.messageId,
-                    sourceDeviceId: message.deviceId,
-                    timestamp: new Date().toISOString(),
-                    payload: {
-                        text: message.payload.text,
-                    },
-                }));
+                const response = new ClipboardService().handlePush(message);
+                socket.send(JSON.stringify(response));
             }
             catch {
                 app.log.warn({
