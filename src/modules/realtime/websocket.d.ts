@@ -1,3 +1,6 @@
 import type { FastifyInstance } from "fastify";
-export declare function realtimeRoutes(app: FastifyInstance): Promise<void>;
+import type { DeviceRegistry } from "../devices/registry.js";
+export declare function realtimeRoutes(app: FastifyInstance, options: {
+    deviceRegistry: DeviceRegistry;
+}): Promise<void>;
 //# sourceMappingURL=websocket.d.ts.map

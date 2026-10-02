@@ -1,14 +1,6 @@
-import type { ClipboardPushMessage } from "../../types/protocol.js";
+import type { ClipboardPushMessage, ClipboardReceivedMessage } from "../../types/protocol.js";
+import type { ConnectedDevice } from "../devices/registry.js";
 export declare class ClipboardService {
-    handlePush(message: ClipboardPushMessage): {
-        version: 1;
-        type: "clipboard.received";
-        messageId: string;
-        sourceDeviceId: string;
-        timestamp: string;
-        payload: {
-            text: string;
-        };
-    };
+    routePush(message: ClipboardPushMessage, devices: ConnectedDevice[]): ClipboardReceivedMessage[];
 }
 //# sourceMappingURL=service.d.ts.map

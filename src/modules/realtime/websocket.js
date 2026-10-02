@@ -2,12 +2,25 @@ import { randomUUID } from "node:crypto";
 import { ClipboardService } from "../clipboard/service.js";
 import { clipboardPushSchema } from "../../schemas/clipboard.js";
 import { PROTOCOL_VERSION } from "../../types/protocol.js";
-export async function realtimeRoutes(app) {
-    app.get("/v1/ws", { websocket: true }, (socket) => {
+export async function realtimeRoutes(app, options) {
+    const clipboardService = new ClipboardService();
+    const { deviceRegistry } = options;
+    app.get("/v1/ws", { websocket: true }, (socket, request) => {
         const connectionId = randomUUID();
+        const deviceId = String(request.query.deviceId ?? "");
+        if (!deviceId) {
+            socket.close(1008, "deviceId is required");
+            return;
+        }
+        deviceRegistry.register({
+            deviceId,
+            socket,
+            connectedAt: new Date().toISOString(),
+        });
         app.log.info({
             event: "websocket.connected",
             connectionId,
+            deviceId,
         });
         socket.send(JSON.stringify({
             version: PROTOCOL_VERSION,
@@ -33,14 +46,37 @@ export async function realtimeRoutes(app) {
                     return;
                 }
                 const message = result.data;
+                if (message.deviceId !== deviceId) {
+                    app.log.warn({
+                        event: "clipboard.device_identity_mismatch",
+                        connectionId,
+                        deviceId,
+                        messageDeviceId: message.deviceId,
+                        messageId: message.messageId,
+                    });
+                    socket.send(JSON.stringify({
+                        version: PROTOCOL_VERSION,
+                        type: "error",
+                        messageId: randomUUID(),
+                        code: "DEVICE_ID_MISMATCH",
+                        message: "Message deviceId does not match connection identity",
+                    }));
+                    return;
+                }
                 app.log.info({
                     event: "clipboard.push.received",
                     connectionId,
                     deviceId: message.deviceId,
                     messageId: message.messageId,
                 });
-                const response = new ClipboardService().handlePush(message);
-                socket.send(JSON.stringify(response));
+                const recipients = clipboardService.routePush(message, deviceRegistry.getAll());
+                app.log.info({
+                    event: "clipboard.push.routed",
+                    connectionId,
+                    sourceDeviceId: message.deviceId,
+                    messageId: message.messageId,
+                    recipientCount: recipients.length,
+                });
             }
             catch {
                 app.log.warn({
@@ -57,9 +93,11 @@ export async function realtimeRoutes(app) {
             }
         });
         socket.on("close", () => {
+            deviceRegistry.unregister(deviceId);
             app.log.info({
                 event: "websocket.disconnected",
                 connectionId,
+                deviceId,
             });
         });
         socket.on("error", () => {
