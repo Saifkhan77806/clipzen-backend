@@ -14,6 +14,8 @@
   "type": "module",
   "dependencies": {
     "@fastify/websocket": "^11.3.1",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
     "@supabase/server": "^1.9.1",
     "@supabase/supabase-js": "^2.117.2",
     "@upstash/redis": "^1.39.0",
