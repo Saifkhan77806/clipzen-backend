@@ -38,6 +38,26 @@ export interface ErrorMessage {
   message: string;
 }
 
+export interface ClipboardDeliveryMessage {
+  version: typeof PROTOCOL_VERSION;
+  type: "clipboard.delivery";
+  messageId: string;
+  deliveryId: string;
+  clipboardItemId: string;
+  sourceDeviceId: string;
+  timestamp: string;
+  payload: {
+    ciphertext: string;
+    nonce: string;
+    authenticationTag: string | null;
+    encryptionAlgorithm: string;
+    keyVersion: number;
+  };
+}
+
 export type ClientMessage = ClipboardPushMessage;
 
-export type ServerMessage = ClipboardReceivedMessage | ErrorMessage;
+export type ServerMessage =
+  | ClipboardReceivedMessage
+  | ClipboardDeliveryMessage
+  | ErrorMessage;
