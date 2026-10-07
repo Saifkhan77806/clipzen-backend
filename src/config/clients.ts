@@ -21,7 +21,7 @@ export async function checkCloudServices() {
     .select("id")
     .limit(1);
 
-  console.log("supabase error:-", supabaseError);
+  //   console.log("supabase error:-", supabaseError);
 
   return {
     redis: redisResult === "PONG",

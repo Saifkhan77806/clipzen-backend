@@ -489,6 +489,38 @@ alter table public.clipboard_deliveries enable row level security;
 alter table public.user_settings enable row level security;
 
 
---------------------------------------------------------------------------------------------- Query 3 ----------------------------------------------------------------------
+--------------------------------------------------------------------------------------------- Query 3 ---------------------------------------------------------------------
+
+select
+    table_name,
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in (
+      'device_pairing_tokens',
+      'device_trust_relationships'
+  )
+order by table_name, ordinal_position;
 
 
+--------------------------------------------------------------------------------------------- Query 4 ---------------------------------------------------------------------
+
+
+select
+    table_name,
+    column_name,
+    data_type,
+    is_nullable,
+    column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in (
+      'clipboard_items',
+      'clipboard_deliveries'
+  )
+order by
+    table_name,
+    ordinal_position;

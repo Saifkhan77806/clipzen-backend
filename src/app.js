@@ -5,6 +5,7 @@ import { realtimeRoutes } from "./modules/realtime/websocket.js";
 import { DeviceRegistry } from "./modules/devices/registry.js";
 import { deviceRoutes } from "./modules/devices/route.js";
 import { deviceKeyRoutes } from "./modules/devices/key-routes.js";
+import { pairingRoutes } from "./modules/pairing/route.js";
 export async function buildApp() {
     const app = Fastify({
         logger: true,
@@ -13,7 +14,8 @@ export async function buildApp() {
     await app.register(websocket);
     await app.register(healthRoutes);
     await app.register(deviceRoutes);
-    await app.register(deviceKeyRoutes);
+    await app.register(pairingRoutes);
+    // await app.register(deviceKeyRoutes);
     await app.register(realtimeRoutes, {
         deviceRegistry,
     });
