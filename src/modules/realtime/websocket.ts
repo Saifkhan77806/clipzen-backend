@@ -1,8 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 
-import { ClipboardService } from "../clipboard/service.js";
-import { clipboardPushSchema } from "../../schemas/clipboard.js";
 import { PROTOCOL_VERSION } from "../../types/protocol.js";
 import type { DeviceRegistry } from "../devices/registry.js";
 import { supabaseAdmin } from "../../config/clients.js";
@@ -12,8 +10,6 @@ export async function realtimeRoutes(
   app: FastifyInstance,
   options: { deviceRegistry: DeviceRegistry },
 ) {
-  const clipboardService = new ClipboardService();
-
   const { deviceRegistry } = options;
 
   app.get(
@@ -25,6 +21,10 @@ export async function realtimeRoutes(
     async (socket, request) => {
       const connectionId = randomUUID();
 
+      /*
+       * The deviceId identifies which registered
+       * CLIPZEN device owns this WebSocket connection.
+       */
       const deviceId = String(
         (
           request.query as {
@@ -34,25 +34,21 @@ export async function realtimeRoutes(
       );
 
       /*
-       * deviceId is still required.
+       * deviceId is required.
        */
       if (!deviceId) {
         socket.close(1008, "deviceId is required");
-
         return;
       }
 
       /*
-       * At this point authenticate() has already
-       * verified the Supabase JWT and populated
-       * request.userId.
+       * authenticate() has already verified
+       * the Supabase JWT and populated request.userId.
        */
-
       const userId = request.userId;
 
       /*
-       * Verify that the device exists and
-       * belongs to the authenticated user.
+       * Verify that the device exists.
        */
       const { data: device, error: deviceError } = await supabaseAdmin
         .from("devices")
@@ -73,7 +69,6 @@ export async function realtimeRoutes(
         );
 
         socket.close(1011, "Device lookup failed");
-
         return;
       }
 
@@ -89,12 +84,11 @@ export async function realtimeRoutes(
         });
 
         socket.close(1008, "Device not found");
-
         return;
       }
 
       /*
-       * Device belongs to another user.
+       * Device must belong to the authenticated user.
        */
       if (device.user_id !== userId) {
         app.log.warn({
@@ -105,13 +99,11 @@ export async function realtimeRoutes(
         });
 
         socket.close(1008, "Device ownership denied");
-
         return;
       }
 
       /*
-       * Revoked/inactive devices cannot
-       * establish a WebSocket connection.
+       * Revoked/inactive devices cannot connect.
        */
       if (device.status !== "active") {
         app.log.warn({
@@ -123,13 +115,12 @@ export async function realtimeRoutes(
         });
 
         socket.close(1008, "Device is not active");
-
         return;
       }
 
       /*
-       * Prevent an old connection from remaining
-       * registered if this device connects again.
+       * If this device already has an active connection,
+       * replace the old connection.
        */
       const existingConnection = deviceRegistry.get(deviceId);
 
@@ -137,15 +128,14 @@ export async function realtimeRoutes(
         try {
           existingConnection.socket.close(1000, "Replaced by newer connection");
         } catch {
-          // Ignore errors while closing
-          // the previous connection.
+          // Ignore errors while closing old connection.
         }
 
         deviceRegistry.unregister(deviceId);
       }
 
       /*
-       * Register authenticated device.
+       * Register the authenticated device connection.
        */
       deviceRegistry.register({
         deviceId,
@@ -161,8 +151,7 @@ export async function realtimeRoutes(
       });
 
       /*
-       * Tell the desktop that the authenticated
-       * WebSocket connection succeeded.
+       * Confirm successful WebSocket connection.
        */
       socket.send(
         JSON.stringify({
@@ -173,116 +162,30 @@ export async function realtimeRoutes(
       );
 
       /*
-       * Handle incoming protocol messages.
+       * The server does not accept clipboard-send messages
+       * through this WebSocket anymore.
+       *
+       * Clipboard sending is handled by:
+       *
+       * POST /v1/clipboard/send
+       *
+       * The WebSocket is used for server -> device
+       * realtime clipboard.delivery messages.
+       *
+       * We intentionally do not register a "message"
+       * handler here.
        */
-      socket.on("message", (rawMessage: Buffer) => {
-        try {
-          const parsed: unknown = JSON.parse(rawMessage.toString("utf-8"));
-
-          const result = clipboardPushSchema.safeParse(parsed);
-
-          if (!result.success) {
-            app.log.warn({
-              event: "websocket.invalid_message",
-              connectionId,
-              userId,
-              deviceId,
-              validationErrors: result.error.issues,
-            });
-
-            socket.send(
-              JSON.stringify({
-                version: PROTOCOL_VERSION,
-                type: "error",
-                messageId: randomUUID(),
-                code: "INVALID_MESSAGE",
-                message: "Invalid protocol message",
-              }),
-            );
-
-            return;
-          }
-
-          const message = result.data;
-
-          /*
-           * Connection identity must match
-           * message identity.
-           */
-          if (message.deviceId !== deviceId) {
-            app.log.warn({
-              event: "clipboard.device_identity_mismatch",
-              connectionId,
-              userId,
-              deviceId,
-              messageDeviceId: message.deviceId,
-              messageId: message.messageId,
-            });
-
-            socket.send(
-              JSON.stringify({
-                version: PROTOCOL_VERSION,
-                type: "error",
-                messageId: randomUUID(),
-                code: "DEVICE_ID_MISMATCH",
-                message: "Message deviceId does not match connection identity",
-              }),
-            );
-
-            return;
-          }
-
-          app.log.info({
-            event: "clipboard.push.received",
-            connectionId,
-            userId,
-            deviceId: message.deviceId,
-            messageId: message.messageId,
-          });
-
-          const recipients = clipboardService.routePush(
-            message,
-            deviceRegistry.getAll(),
-          );
-
-          app.log.info({
-            event: "clipboard.push.routed",
-            connectionId,
-            userId,
-            sourceDeviceId: message.deviceId,
-            messageId: message.messageId,
-            recipientCount: recipients.length,
-          });
-        } catch {
-          app.log.warn({
-            event: "websocket.invalid_json",
-            connectionId,
-            userId,
-            deviceId,
-          });
-
-          socket.send(
-            JSON.stringify({
-              version: PROTOCOL_VERSION,
-              type: "error",
-              messageId: randomUUID(),
-              code: "INVALID_JSON",
-              message: "Invalid JSON message",
-            }),
-          );
-        }
-      });
 
       /*
        * Connection closed.
        */
       socket.on("close", () => {
         /*
-         * Only remove this connection if it is
-         * still the active connection for the device.
+         * Only unregister this connection if it is still
+         * the active connection for this device.
          *
-         * This prevents an older connection's
-         * close event from deleting a newer one.
+         * This prevents an older connection's close event
+         * from removing a newer connection.
          */
         const current = deviceRegistry.get(deviceId);
 
@@ -298,13 +201,20 @@ export async function realtimeRoutes(
         });
       });
 
-      socket.on("error", () => {
-        app.log.error({
-          event: "websocket.error",
-          connectionId,
-          userId,
-          deviceId,
-        });
+      /*
+       * WebSocket error.
+       */
+      socket.on("error", (error: Error) => {
+        app.log.error(
+          {
+            event: "websocket.error",
+            connectionId,
+            userId,
+            deviceId,
+            error,
+          },
+          "CLIPZEN: WebSocket error",
+        );
       });
     },
   );

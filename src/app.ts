@@ -17,9 +17,16 @@ export async function buildApp() {
 
   await app.register(websocket);
   await app.register(healthRoutes);
-  await app.register(deviceRoutes, { deviceRegistry });
+  await app.register(deviceRoutes, {
+    deviceRegistry,
+  });
+
   await app.register(pairingRoutes);
-  await app.register(clipboardRoutes);
+
+  await app.register(clipboardRoutes, {
+    deviceRegistry,
+  });
+
   await app.register(realtimeRoutes, {
     deviceRegistry,
   });

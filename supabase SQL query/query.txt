@@ -524,3 +524,33 @@ where table_schema = 'public'
 order by
     table_name,
     ordinal_position;
+
+
+
+1. Update database delivery status constraints
+        ↓
+2. Move encrypted payload to clipboard_deliveries
+        ↓
+3. Update clipboard send Zod schema
+        ↓
+4. Rewrite POST /v1/clipboard/send
+        ↓
+5. Update WebSocket to clipboard.delivery
+        ↓
+6. Add delivery received/ACK handling
+        ↓
+7. Add POST /accept
+        ↓
+8. Add POST /decline
+        ↓
+9. Add POST /applied
+        ↓
+10. Add GET /clipboard/:id/status
+        ↓
+11. Update desktop WebSocket receiver
+        ↓
+12. Desktop decrypt
+        ↓
+13. Desktop writes system clipboard
+        ↓
+14. Prevent clipboard feedback loop
